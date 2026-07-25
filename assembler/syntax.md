@@ -7,17 +7,6 @@ document covers how it's written down: file layout, operand syntax,
 labels, variables, and the diagnostics the assembler produces when
 something is wrong.
 
-> **A known gap right now:** the reserved-region rules below (GPIO /
-> unused / NVM / RAM) reflect the memory map as designed and documented in
-> `docs/memory-map.md`. The assembler itself currently still enforces an
-> older map from early development (ports `0000h`-`0003h`, stack
-> `FA00h`-`FFFFh`, variables auto-starting at `0004h`), which predates the
-> current hardware map — under the real memory map, `0004h` is actually
-> unmapped dead space. The assembler's reserved-region constants are due
-> to be updated to match; until then, the table under
-> [Memory map](#memory-map) reflects the target, not necessarily what the
-> assembler enforces today.
-
 ## Table of contents
 
 - [File layout](#file-layout)
