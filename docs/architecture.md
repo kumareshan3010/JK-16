@@ -4,6 +4,8 @@
 
 JK16 is a custom 16-bit microcoded CISC processor with a completely custom, from-scratch instruction set. It is implemented at the discrete-logic level in the [Digital](https://github.com/hneemann/Digital) logic simulator — every register, mux, and control signal is built from primitive logic gates and simulator components, not behavioral HDL.
 
+All control signals in the design use **active-high logic** throughout.
+
 | Property | Value |
 |---|---|
 | Architecture style | Custom 16-bit microcoded CISC |
@@ -13,7 +15,7 @@ JK16 is a custom 16-bit microcoded CISC processor with a completely custom, from
 | Opcode field | 6 bits (64 opcodes) |
 | Register fields | 3-bit RA, 3-bit RB |
 | Microinstruction word | 48 bits (39 control bits used, 9 reserved) |
-| Microstep counter | 6 bits, loadable |
+| Microstep counter | 6 bits, loadable, negative-edge triggered |
 | Instruction length in microsteps | 2 (minimum) – ~82 (maximum, multiplication) |
 | Reserved instruction bits | 4 bits, currently zero |
 | Memory model | Strict Harvard |
@@ -25,98 +27,120 @@ Program ROM feeds the Instruction Fetch Unit (PC, IR, IMM), which hands off to t
 
 *(Full gate-level datapath diagram: `docs/images/datapath.png`)*
 
+## Clocking
+
+- The clock signal originates from a crystal oscillator, then passes through a **Frequency Divider** (an 8-bit counter) and a **Frequency Selector** (an 8-to-1 multiplexer); the mux output is the actual processor clock. This lets the operating speed be adjusted by the user — a convenience/demo feature for watching execution step-by-step in the simulator, not a functional requirement.
+- Every component in the design is **positive-edge triggered**, except the **microstep counter**, which is **negative-edge triggered** so that control signals settle before the next rising clock edge drives the rest of the datapath. Since the counter itself is a positive-edge part, this is achieved by inverting the clock into its clock input.
+- The clock is distributed to every component that needs it.
+
 ## Instruction Fetch
 
-- The **Program Counter (PC)** is a dedicated 16-bit register holding the address of the next instruction. During fetch it drives the PC's own dedicated address bus into Program ROM.
-- The fetched 16-bit word loads into the **Instruction Register (IR)**, where it stays stable for the entire execution of that instruction so the control unit can decode opcode and operand fields without racing the next fetch.
-- After fetch, the PC normally increments. For `JMP`, `CALL`, `RET`, and conditional branches, microcode instead loads the PC with a new target address.
+- The **Program Counter (PC)** is a loadable 16-bit counter with its own dedicated address bus to Program ROM — it is the *only* register that can address Program ROM.
+- PC behavior is controlled by two bits, **pc_enable** and **pc_sel**:
+  - `pc_enable=1, pc_sel=1` → PC loads from the ALU output on the next clock edge (used for jumps/calls/returns)
+  - `pc_enable=1, pc_sel=0` → PC increments (normal sequential fetch)
+  - `pc_enable=0` → PC holds its value
+- The fetched 16-bit word loads into the **Instruction Register (IR)**, which holds the instruction stable for the entire duration of its execution so the control unit can decode opcode and operand fields without racing the next fetch.
+- **Two-word instructions**: some instructions (e.g. load-immediate) span two 16-bit words — the first word is the instruction itself, and the PC increments a second time to fetch the following word, which loads into the Immediate Register (IMM) as the immediate value or address.
 
 ## Instruction Format
 
-Every instruction is a fixed 16-bit word:
+Every instruction is a fixed 16-bit word, read MSB first:
 
 - **6-bit opcode** → up to 64 distinct instructions
-- **3-bit RA field** → selects 1 of 8 registers in Register Bank A (primary/destination)
-- **3-bit RB field** → selects 1 of 8 registers in Register Bank B (secondary/source)
-- Remaining bits, depending on format, encode immediate data or other instruction-specific fields
-- **4 bits are currently unused**, kept as zero and reserved for future expansion
+- **3-bit RA field** → selects 1 of the registers in Register Bank A
+- **3-bit RB field** → selects 1 of the registers in Register Bank B
+- **4 bits, currently unused** — always zero, reserved for future expansion
 
 ## Register File
 
-- Two independent banks, **A** and **B**, 8 × 16-bit registers each.
-- `A7` is conventionally the stack pointer, but functions as a general-purpose register when the stack is unused.
-- RA/RB fields feed the register-file selection logic and write-enable circuitry independently, so an instruction can read from one bank and write to the other in the same cycle.
+- Two independent banks, **A** and **B**.
+- **A0–A6** and **B0–B6** are general-purpose (7 registers per bank).
+- **A7** is the stack pointer for a downward-growing stack (usable as general-purpose if the stack is unused).
+- **B7** is a hidden register, inaccessible to the programmer, used internally for calculations; **A6** is also occasionally borrowed for internal use.
+- RA/RB fields drive the register-file selection and write-enable logic independently, so an instruction can read from one bank and write to the other in the same cycle.
 
 ## Datapath Registers
 
 | Register | Width | Role |
 |---|---|---|
-| PC | 16-bit | Next-instruction address; own dedicated bus to Program ROM |
+| PC | 16-bit | Loadable counter; sole address source for Program ROM |
 | IR | 16-bit | Holds the current instruction stable during decode/execute |
-| IMM | 16-bit | Holds the immediate operand extracted from the instruction, extended to 16 bits when needed |
+| IMM | 16-bit | Holds the immediate value/address from a two-word instruction |
 | MAR | 16-bit | Holds the address driven onto the shared RAM/NVM/GPIO data bus |
-| MDR | 16-bit | Buffer used **only** for memory-to-memory transfers (e.g. `MEMCPY`) |
+| MDR | 16-bit | Buffer used **only** for memory-to-memory transfers (e.g. `MEMCPY`, `MEMSET`) |
 | WBS | 16-bit mux | Selects the value written back to the destination register |
 
-**MAR** can be loaded from four sources under microcode control: IMM (direct addressing), Register A (register-indirect), Register B (alternate register-indirect), or the ALU output (computed/indexed addressing).
+**MAR** can be loaded from four sources under microcode control: IMM (direct addressing), Register A (register-indirect), Register B (alternate register-indirect), or the ALU output (computed/indexed addressing). It is the only register that can supply an address to memory.
 
-**MDR** is deliberately narrow in scope: it's loaded only from memory and writes only to memory, used exclusively when a memory-to-memory instruction needs to buffer data between a read and a subsequent write. Ordinary loads bypass the MDR entirely — memory data goes straight to the Writeback Selector.
+**MDR** is deliberately narrow in scope: loaded only from memory, and its output goes only to a memory write. It exists purely as temporary storage for memory-to-memory operations. Ordinary loads bypass it entirely — memory data goes straight to the Writeback Selector.
 
-**Writeback Selector (WBS)** is a 4-input mux choosing what gets written to the destination register: ALU output, memory data, the Immediate Register, or the PC (for instructions like `CALL` that save a return address). One shared writeback path serves arithmetic, logic, memory, immediate, and control-flow instructions, keeping the datapath simple despite a large instruction set.
+**Writeback Selector (WBS)** is a 16-bit, 4-to-1 mux that controls only the *datapath* of what gets written into the register file (not which register — that's the RA/RB decode logic). Its four sources: Immediate Register (IMM), ALU output, Memory (RAM/NVM/GPIO), or the Program Counter (for instructions like `CALL` that save a return address). One shared writeback path serves arithmetic, logic, memory, immediate, and control-flow instructions, keeping the datapath simple despite a large instruction set.
 
 ## ALU
 
-- 16-bit inputs and output.
-- 16 primitive operations, selected by a 4-bit **ALUOP** from the control unit.
-- Updates four status flags whenever applicable: **Z**ero, **C**arry, **N**egative, **O**verflow.
-- Includes dedicated multiplication and division hardware alongside the primitive ALU ops. An 8×8 multiply produces a full result; a 16×16 multiply keeps only the lower 16 bits of the product.
+- 16-bit inputs and output, purely **combinational** — no clock pulse needed to produce a result.
+- 16 operations available, operating on the A and B register fields.
+- Includes a **pass** operation, which produces no arithmetic result but lets the status flags be loaded directly from a register's value.
+- Result writes back to the selected Register A field via the Writeback Selector.
+- Dedicated multiplication and division hardware sits alongside the primitive ALU ops (see below).
 
-### MUL/DIV writeback path
+### Multiplication
 
-The **Special Mul Mux** and **Special Div Mux** sit on the bus between the ALU output and the Writeback Selector. During a multiply or divide, the corresponding mux — controlled directly by the multiplication/division hardware — transparently substitutes its result onto that bus in place of the ALU's own output. The rest of the datapath, including the WBS, is unaware of the substitution; as far as writeback is concerned, it's still reading "the ALU output."
+- Implemented via **shift-and-add**.
+- Result is stored in a hidden 16-bit **mul_result** register: holds the full result for 8-bit operands, but only the lower 16 bits for a 16×16 multiply (the upper half is discarded).
+- Writeback is handled by the **Special Mul Mux**, a 16-bit 2-to-1 mux that temporarily substitutes `mul_result` onto the ALU-output input of the Writeback Selector during a multiply; at all other times, the true ALU output passes through unchanged.
+
+### Division
+
+- Implemented via **repeated subtraction**.
+- The remainder is held in a register in the **A** field; the quotient is written back to a register in the **B** field.
+- Writeback follows the same pattern as multiplication, via a dedicated **Special Div Mux** feeding the Writeback Selector.
 
 ## Control Unit
 
-- Fully microprogrammed with **horizontal microcode**: each control ROM word is 48 bits, of which 39 bits are currently assigned to control signals and 9 are reserved for future expansion.
-- A **loadable microstep counter** (6 bits) generates the address into the control ROM. It normally increments each cycle, but microcode can load it directly to perform conditional/unconditional microbranches, skip steps, or jump into shared microcode routines.
-- Because the microstep counter is only 6 bits wide, long operations — most notably multiplication, the longest instruction at roughly 82 microsteps — are implemented as **microloops**: the counter is repeatedly reloaded to cycle through a shared block of microcode rather than needing a wider counter. Instruction length ranges from 2 microsteps (shortest) to around 82 (multiplication).
-- At the end of each instruction, the microstep counter is loaded with the starting microstep of the next fetch cycle.
+- Fully microprogrammed with **horizontal microcode**. Physically, the control ROM is **6 × 8-bit ROM chips**, each with 12-bit address lines, wired horizontally and sharing the same address bus — together producing the 48-bit microinstruction word (39 bits currently used as control signals, 9 reserved for future use).
+- The **microstep counter** (6-bit, loadable, with reset) combines with the opcode to form the address into the control ROM. It normally increments each cycle, but microcode can reload it directly to perform microbranches, skip steps, or jump into shared microcode routines (microsequencing).
+- Because the counter is only 6 bits wide, long operations — most notably multiplication, the longest instruction at roughly 82 microsteps — are implemented as **microloops**: the same block of microcode is revisited by repeatedly reloading the counter, rather than requiring a wider counter. Instruction length overall ranges from 2 microsteps (shortest) to ~82 (multiplication).
+- **Important distinction**: these microcode jumps happen *within* a single instruction's execution (microbranches/microsequencing/microloops) — they are not the same thing as program-level `JMP` instructions.
 
 ### Conditional branching
 
-Branching is split across two small dedicated circuits:
+Program-level branching is split across two small dedicated circuits:
 
-- **Condition Checker** takes a 2-bit flag-select code and a 1-bit required value, and outputs 1 if the selected status flag currently matches the required value.
-- **Jump Controller** decides whether the Condition Checker is even consulted. For an *unconditional* jump, it asserts the jump-enable signal directly, bypassing the Condition Checker entirely. For a *conditional* jump, it outputs 0 and the jump decision rests entirely on the Condition Checker's result.
+- **Condition Checker**: a combinational circuit taking a 2-bit flag-select code (via the **Flag Selector**, choosing among Z/C/N/V) and a 1-bit required value; outputs 1 only if the selected flag's actual value matches the required value.
+- **Jump Controller**: a control bit that decides whether the Condition Checker is even consulted — low means the jump is conditional (decision rests entirely on the Condition Checker), high means the jump is unconditional (jump proceeds regardless).
 
-## Clocking
+## Status Flags
 
-A **Frequency Divider** and **Frequency Selector** let the operating clock speed be adjusted by the user. This is a convenience/demo feature (useful for watching execution step-by-step in the simulator) rather than a functional requirement of the architecture.
+- Four flags: **Z**ero, **C**arry, **N**egative, **O**verflow, held in a dedicated flag register.
+- A **flag load selector** mux chooses which of three sources loads the flag register: ALU output (the primary source), memory, or the **decrement loop counter** (a hidden counter used internally for operations like `MEMCPY`).
+- Flag register contents can be pushed to and popped from the stack (`PUSHF`/`POPF`), so flag state can be preserved across subroutine calls.
 
 ## Memory System (Strict Harvard)
 
-JK16 keeps instruction and data memory on **completely separate buses** — this is not memory-mapped-ROM-on-a-shared-bus; the PC's address bus never touches the MAR/data path at all.
+JK16 keeps instruction and data memory on **completely separate buses** — the PC's address bus never touches the MAR/data path at all.
 
 | Bus | Driven by | Destination | Size |
 |---|---|---|---|
 | Instruction bus | PC | Program ROM | 128 kB (16-bit words) |
 | Data bus | MAR | RAM / NVM / GPIO (shared) | 64K addressable 16-bit words |
 
-The 64K data address space is split by the **Address Decoder**, which enables exactly one unit based on address bit patterns:
+The 64K data address space is split by the **Address Decoder**, which enables exactly one unit based on the address bits presented by MAR:
 
-| Address pattern | Unit enabled | Capacity |
-|---|---|---|
-| MSB = 1 | RAM | 32K locations (16-bit words) |
-| MSB = 0, next bit = 1 | NVM | 16K locations = 32 kB |
-| All bits 0 except lowest 2 | GPIO port select | 4 addresses (1 per port) |
-| Top two bits = 0, other pattern | *(unused — memory idle)* | — |
+| Address pattern | Unit enabled | Capacity | Address lines needed |
+|---|---|---|---|
+| MSB = 1 | RAM | 64 kB (32K x 16-bit words) | 15 |
+| MSB = 0, next bit = 1 | NVM (EEPROM/flash) | 32 kB (16K x 16-bit words) | 14 |
+| Higher 14 bits all 0 | GPIO port select (low 2 bits choose port) | 4 ports | 2 |
+| Any other top-bits-zero pattern | *(unused — memory idle)* | — | — |
 
-RAM and NVM are both built from two 8-bit-wide chips joined horizontally to form a 16-bit word per location.
+RAM and NVM are each built from two 8-bit-wide chips joined horizontally to form one 16-bit word per address. All three memory elements share the same address lines and the same memory-in/memory-out data buses; only the element selected by the Address Decoder actually drives or receives data.
 
 ## GPIO
 
-- 4 memory-mapped GPIO ports, 16 bits each (64 pins total).
-- Each port has its own direction, input, and output registers, addressed via the last two bits of the GPIO address range described above.
+- 4 memory-mapped ports, 16 bits each (64 pins total), each addressed as a single memory location.
+- Ports are **bidirectional**: in memory-write mode a port drives its pins as output; in memory-read mode it reads external input on those pins.
 
 ## Stack
 
@@ -125,4 +149,4 @@ RAM and NVM are both built from two 8-bit-wide chips joined horizontally to form
 
 ## Why CISC
 
-JK16 is classified as CISC rather than RISC because of instruction *complexity*, not just because some instructions touch memory directly. Execution length varies enormously by opcode — from 2 microsteps for the simplest register operations up to roughly 82 microsteps for multiplication — and multi-step, memory-to-memory instructions like `MEMCPY`/`MEMSET` do work in one opcode that a RISC ISA would require a instruction sequence for.
+JK16 is classified as CISC rather than RISC because of instruction *complexity*, not just because some instructions touch memory directly. Execution length varies enormously by opcode — from 2 microsteps for the simplest register operations up to roughly 82 microsteps for multiplication — and multi-step, memory-to-memory instructions like `MEMCPY`/`MEMSET` do work in one opcode that a RISC ISA would require an instruction sequence for.
