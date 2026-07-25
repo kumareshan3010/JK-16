@@ -2,9 +2,9 @@
 
 JK16 is a completely custom-designed 16-bit CISC processor with a from-scratch instruction set, built entirely at the discrete-logic level and implemented in the [Digital](https://github.com/hneemann/Digital) logic simulator. Every register, mux, ALU operation, and control signal is hand-designed from primitive logic gates — nothing here is generated from behavioral HDL or a synthesis tool. The processor, its instruction set architecture, its microcode, and its complete datapath are an original design built from the ground up.
 
-![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Status: v1 simulator-verified](https://img.shields.io/badge/status-v1%20simulator--verified-brightgreen.svg)
-![Platform: Digital](https://img.shields.io/badge/simulator-Digital-orange.svg)
+[![Platform: Digital](https://img.shields.io/badge/simulator-Digital-orange.svg)](https://github.com/hneemann/Digital)
 
 ---
 
