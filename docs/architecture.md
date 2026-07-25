@@ -139,8 +139,8 @@ RAM and NVM are each built from two 8-bit-wide chips joined horizontally to form
 
 ## GPIO
 
-- 4 memory-mapped ports, 16 bits each (64 pins total), each addressed as a single memory location.
-- Ports are **bidirectional**: in memory-write mode a port drives its pins as output; in memory-read mode it reads external input on those pins.
+- 4 memory-mapped ports, 16 bits each (64 pins total), each addressed as a single memory location (0x0000–0x0003).
+- Ports are bidirectional with no separate direction register: a memory write to a port (OUTA/OUTB) drives its pins as output; a memory read (INA/INB) reads the external pin state as input. Direction simply follows whichever operation is issued.
 
 ## Stack
 
