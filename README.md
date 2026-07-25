@@ -1,6 +1,6 @@
 # JK16 — A Custom 16-bit Microcoded CISC Processor
 
-JK16 is a completely custom-designed 16-bit CISC processor with a from-scratch instruction set, built entirely at the discrete-logic level and implemented in the [Digital](https://github.com/hneemann/Digital) logic simulator. Nothing here is generated from behavioral HDL or a synthesis tool. The processor, its instruction set architecture, its microcode, and its complete datapath are an original design built from the basic digital logic elements.
+JK16 is a completely custom-designed 16-bit CISC processor featuring a from-scratch instruction set architecture (ISA), built entirely at the discrete-logic level and implemented in the [Digital](https://github.com/hneemann/Digital) logic simulator. Nothing in this project is generated from behavioural HDL or a synthesis tool. The processor, its ISA, microcode, control unit, and complete datapath are all original designs, constructed from fundamental digital logic components.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Status: v1 simulator-verified](https://img.shields.io/badge/status-v1%20simulator--verified-brightgreen.svg)
