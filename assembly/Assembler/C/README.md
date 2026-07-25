@@ -1,6 +1,6 @@
 # CPU Assembler (C port)
 
-A C port of the Python two-pass assembler for JK16. See [`syntax.md`](syntax.md) for the assembly
+A C port of the Python two-pass assembler for JK16. See [`syntax.md`](assembly/syntax.md) for the assembly
 language reference.
 
 All four tools share one core implementation (`core.c`/`core.h`) - the
