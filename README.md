@@ -82,7 +82,7 @@ All 64 opcodes (`0x00`–`0x3F`) are defined — there are no reserved/unused sl
 
 Every instruction is `[6-bit opcode][3-bit RA][3-bit RB][4 reserved bits]`, with some instructions extending to 2–4 words for immediates and addresses. Block-memory and control-flow instructions have full support for register-indirect and immediate addressing, conditional branching on all four status flags (Z/C/N/V), and safe subroutine calls with a dedicated downward-growing stack.
 
-The complete opcode table, per-instruction operand formats, and usage notes (e.g. why `INITSP` must run first, how `BITMASK`/`BITSET`/`BITCLR`/`BITTEST` chain together) are in [`docs/instruction-set.md`](docs/instruction-set.md).
+The complete opcode table, per-instruction operand formats, and usage notes (e.g. why `INITSP` must run first, how `BITMASK`/`BITSET`/`BITCLR`/`BITTEST` chain together) are in [`docs/instruction-set.md`](docs/Instruction-set.md).
 
 ## Memory Map
 
