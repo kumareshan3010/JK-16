@@ -116,52 +116,130 @@ For the control ROM's own hardware (address formation, the negative-edge microst
 ## Repository Structure
 
 ```
-your-cpu/
-├── README.md
+JK16_Custom_CISC_Processor-main/
+├── .gitignore
 ├── LICENSE
-├── CHANGELOG.md
+├── README.md
+│
+├── assembly/
+│   ├── syntax.md
+│   └── Assembler/
+│       ├── C/
+│       │   ├── Makefile
+│       │   ├── README.md
+│       │   ├── assembler_check.c
+│       │   ├── assembler_full.c
+│       │   ├── assembler_hex.c
+│       │   ├── assembler_txt.c
+│       │   ├── core.c
+│       │   ├── core.h
+│       │   ├── syntax.md
+│       │   └── single_file/
+│       │       ├── Makefile
+│       │       └── assembler.c
+│       └── Python/
+│           ├── asm_check.py
+│           ├── asm_listing.py
+│           ├── asm_machinecode.py
+│           ├── assembler_core.py
+│           ├── digital_remote.py
+│           ├── syntax.md
+│           └── single_file/
+│               └── assembler.py
+│
+├── control-rom/
+│   └── CONTROL_ROM_48BIT_(DIGITAL).hex
+│
+├── digital/                          (Digital simulator .dig files — gate-level)
+│   ├── ALU.dig
+│   ├── COND_CHECKER.dig
+│   ├── CONTROL_UNIT.dig
+│   ├── DEC_COUNTER.dig
+│   ├── FLAGS.dig
+│   ├── IR_and_IMM.dig
+│   ├── MEMORY.dig
+│   ├── MICROSTEP_COUNTER.dig
+│   ├── PROGRAM_COUNTER.dig
+│   ├── PROG_MEMORY.dig
+│   ├── REG_BANK.dig
+│   ├── SPECIAL_DIV.dig
+│   ├── SPECIAL_MUL.dig
+│   ├── WB_SELECTOR.dig
+│   └── processor/
+│       └── FULL_PROCESSOR.dig
 │
 ├── docs/
-│   ├── architecture.md       High-level design: datapath registers, ALU, control unit, memory system
-│   ├── instruction-set.md    Full 64-opcode reference table, categories, usage notes
-│   ├── memory-map.md         Address space layout: RAM / NVM / GPIO / Program ROM
-│   ├── microcode.md          Control signal reference + fully decoded microcode for every instruction
-│   ├── datapath.md           Bus-level signal flow between every component
-│   ├── control-unit.md       Control ROM structure, microstep counter, branch circuits, clocking
-│   ├── roadmap.md            Planned directions beyond v1
-│   └── images/                 Diagrams (architecture, datapath, ALU, registers)
+│   ├── Instruction-set.md
+│   ├── architecture.md
+│   ├── control-unit.md
+│   ├── datapath.md
+│   ├── memory-map.md
+│   ├── microcode.md
+│   └── roadmap.md
 │
-├── digital/                    Digital simulator design files (.dig)
-│   ├── Processor.dig
-│   ├── ALU.dig
-│   ├── ControlUnit.dig
-│   ├── RegisterFile.dig
-│   └── ...
+├── images/
+│   ├── architecture/
+│   │   ├── EXECUTION.jpg
+│   │   ├── FETCH.jpg
+│   │   ├── FLAGS.jpg
+│   │   └── MEMORY.jpg
+│   └── schematic/
+│       ├── ALU.jpg
+│       ├── COND_CHECKER.jpg
+│       ├── CONTROL_UNIT.jpg
+│       ├── DEC_COUNTER.jpg
+│       ├── FLAGS.jpg
+│       ├── IR_and_IMM.jpg
+│       ├── MEMORY.jpg
+│       ├── MICROSTEP_COUNTER.jpg
+│       ├── PROGRAM_COUNTER.jpg
+│       ├── PROG_MEMORY.jpg
+│       ├── REG_BANK.jpg
+│       ├── SPECIAL_DIV.jpg
+│       ├── SPECIAL_MUL.jpg
+│       └── WB_SELECTOR.jpg
 │
-├── rom/                         Generated ROM hex files
-│   ├── control_rom.hex
-│   ├── boot_rom.hex
-│   └── microcode.xlsx
-│
-├── assembler/                   Two-pass Python assembler for the JK16 ISA
-│   ├── assembler.py
-│   ├── syntax.md
-│   └── examples/
-│
-├── programs/                    Example assembly programs
-│   ├── hello.asm
+├── programs/
+│   ├── blink.asm
+│   ├── block_memory.asm
+│   ├── factorial.asm
 │   ├── fibonacci.asm
-│   ├── multiplication.asm
-│   └── blink.asm
+│   └── subroutine_calls.asm
 │
-├── tools/                       Utility scripts
-│   └── hex_generator.py
+├── verilog/                          (RTL translation of the design)
+│   ├── ALU.v
+│   ├── COND_CHECKER.v
+│   ├── CONTROL_UNIT.v
+│   ├── DEC_COUNTER.v
+│   ├── FLAGS.v
+│   ├── IR_and_IMM.v
+│   ├── MEMORY.v
+│   ├── MICROSTEP_COUNTER.v
+│   ├── PROG_MEMORY.v
+│   ├── REG_BANK.v
+│   ├── SPECIAL_DIV.v
+│   ├── SPECIAL_MUL.v
+│   ├── WB_SELECTOR.v
+│   └── processor/
+│       └── PROCESSOR.v
 │
-├── verification/                Instruction-level test results
-│   ├── test-cases.md
-│   └── logs/
-│
-└── sim-screenshots/              Simulator and waveform captures
+└── vhdl/                             (VHDL translation of the design)
+    ├── ALU.vhdl
+    ├── COND_CHECKER.vhdl
+    ├── CONTROL_UNIT.vhdl
+    ├── DEC_COUNTER.vhdl
+    ├── FLAGS.vhdl
+    ├── IR_and_IMM.vhdl
+    ├── MEMORY.vhdl
+    ├── MICROSTEP_COUNTER.vhdl
+    ├── PROGRAM_COUNTER.vhdl
+    ├── PROG_MEMORY.vhdl
+    ├── REG_BANK.vhdl
+    ├── SPECIAL_DIV.vhdl
+    ├── SPECIAL_MUL.vhdl
+    └── processor/
+        └── PROCESSOR.vhdl
+
 ```
 
 ## Getting Started
